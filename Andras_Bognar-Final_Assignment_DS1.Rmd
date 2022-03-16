@@ -244,3 +244,5 @@ knitr::include_graphics(if (identical(knitr:::pandoc_to(), 'html')) t3p6_url els
 ```
 
 Irreducible error or noise doesn’t change based on model selection or feature engineering, it comes from the fact that our data doesn’t include all relevant predictors. We can’t change that, so it **remains constant**.
+
+All files used can be found in this [Github repo](https://github.com/BognarAndras/ds1_final).
