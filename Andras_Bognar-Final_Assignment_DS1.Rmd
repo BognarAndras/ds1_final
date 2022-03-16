@@ -1,0 +1,246 @@
+---
+title: "DS1 Final Assignment"
+author: "A. BOGNAR"
+date: "3/15/2022"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+library(data.table)
+library(ggplot2)
+library(ggpubr)
+library(knitr)
+library(kableExtra)
+```
+
+## Task 1
+
+First we derivate the ridge estimator for the dictionary which only includes beta0 (intercept).
+
+```{r, echo=FALSE,fig.align='center'}
+
+
+derivation_url = 'https://raw.githubusercontent.com/BognarAndras/ds1_final/main/derivation.png'
+if (!file.exists(deriv_file <- 'derivation.png'))
+  download.file(derivation_url, deriv_file, mode = 'wb')
+knitr::include_graphics(if (identical(knitr:::pandoc_to(), 'html')) derivation_url else
+  deriv_file)
+
+```
+
+The OLS estimator will be very similar, only without penalty term lamba, leaving precisely the avg. y.
+
+```{r, echo=FALSE,fig.align='center'}
+
+
+ols_url = 'https://raw.githubusercontent.com/BognarAndras/ds1_final/main/ols_derivation.png'
+if (!file.exists(ols_file <- 'ols_derivation.png'))
+  download.file(ols_url, ols_file, mode = 'wb')
+knitr::include_graphics(if (identical(knitr:::pandoc_to(), 'html')) ols_url else
+  ols_file)
+
+```
+
+Now, we implement the two estimators and in case of ridge, iterate through lambda values 0 to 20, resulting in 21 ridge estimations.
+
+```{r cars}
+lambdas <- seq(0,20,1)
+beta0 <- 1
+
+
+generate_sample <- function(n) {
+  data <- data.table()
+  for (lambda in lambdas) {
+    epsilon <- rnorm(n , 0 , 2)
+    y_i <- beta0 + epsilon
+    beta_hat_ridge <- sum(y_i) / (n + lambda)
+    data <- rbind(data , data.table(beta_hat_estimate = beta_hat_ridge , lambda = lambda))
+    if (lambda == 0) {
+      beta_hat_ols <- sum(y_i) / n 
+      data <- rbind(data , data.table(beta_hat_estimate = beta_hat_ols , lambda = NA))
+    }
+  }
+  return(data)
+}
+
+data <- generate_sample(10)
+```
+
+Repeat the same process 999 more times, then calculate bias, variance and mse. I included the final results below with OLS estimation having NA as lambda. It's of course the same as Ridge estimation with 0 lambda.
+
+```{r pressure, echo=FALSE}
+for (sam_num in 1:999) {
+  next_sam <- generate_sample(10)
+  data <- rbind(data , next_sam)
+}
+
+data[ , ':='(bias = ifelse( beta_hat_estimate > 1 , beta_hat_estimate - 1 ,
+                            1 - beta_hat_estimate )) ]
+data_by_lambda <- data[ , .(bias2 = mean(bias)^2 , var = var(beta_hat_estimate)) , by = lambda]
+data_by_lambda[ , ':='(mse = bias2+var)]
+kable(data_by_lambda) %>% kable_styling(latex_options = "hold_position")
+```
+
+In the visualization of the results I don't include OLS, it would be redundant. We see a similar bias-variance tradeoff as in the first assignment, only here the variance decreases as the penalty term rises and the bias increases at the same time. In real data with predictors, this would be the result of shrinking coefficients so that the irrelevant predictors are weighted nearly 0 (although never dropped in Ridge).
+
+
+```{r}
+ggplot(data = data_by_lambda[!(is.na(lambda))] , aes(x = lambda) ) +
+  geom_line(aes(y = bias2, colour = "bias2")) + 
+  geom_line(aes(y = var, colour = "var")) +
+  geom_line(aes(y = mse, colour = "mse")) +
+  ylab("prediction error") +
+  guides(fill=guide_legend(title="Prediction error component"))
+
+```
+
+\newpage
+
+## Task 2
+
+Below is an attempt of mine at the derivation. It is most likely incorrect, the resulting principal component vector makes no intuitive sense. Instead, let me offer an intuitive understanding in programmatic example.
+
+```{r, echo=FALSE,fig.align='center', out.width = "75%"}
+
+
+pca_url = 'https://raw.githubusercontent.com/BognarAndras/ds1_final/db76818d8921f434c9b7bdb03b917e89dc0afaf6/pca_deriv.jpg'
+if (!file.exists(pca_file <- 'pca_deriv.jpg'))
+  download.file(pca_url, pca_file, mode = 'wb')
+knitr::include_graphics(if (identical(knitr:::pandoc_to(), 'html')) pca_url else
+  pca_file)
+
+```
+
+I generated two random variables with 0 means, first with random variable y having 5 times higher variation than random variable x.
+
+```{r}
+pca_visualize <- function(var1 , var2) {
+  randomx <- rnorm(10000 , 0 , var1 )
+  randomy <- rnorm(10000 , 0 , var2 )
+  randomdata <- data.table(randomy = randomy , randomx = randomx)
+  randompca <- prcomp(randomdata)
+  pcom1 <- randompca$rotation[, "PC1"]
+  plot <- ggplot(data = randomdata ,  aes(x = randomx , y = randomy )) + geom_point() +
+    geom_abline(slope = pcom1[["randomy"]] / pcom1[["randomx"]], color = "red") 
+  return(plot)
+}
+
+list_of_plots_diffvar <- c()
+for (run in 1:4) {
+  next_plot <- pca_visualize( 1 , 5 )
+  list_of_plots_diffvar[[run]] <- next_plot
+}
+
+
+```
+
+Then, I visualize below the scatterplot of the random data points, with the first principle component vector that captures most of the variance. These two variables are not completely independent, random noise will generate some correlation, but with relatively large sample size (here 10000) it is negligible. As you can see, no matter how many times I run the simulation, random variable y will generate almost all of the variation (above 99%) and the direction of the pca vector will be very close to the y axis. This is why standardization is important, otherwise variation can simply come from bigger absolute value of observations.
+
+```{r}
+ggarrange(
+  plotlist = list_of_plots_diffvar[1:4],
+  ncol = 2,
+  nrow = 2)
+
+
+```
+
+\newpage
+
+In comparison, below is the visualization of two random variables with same variance of 1. As you can see, each time I run the simulation I get a different result for the PCA vector. That is because a vector from any direction (same length) would capture almost the same variation. The two variables are almost completely independent, thus PCA can not reduce their information content. PCA is not very useful if all variables are independent, however, in real life this is rarely the case. 
+
+```{r}
+list_of_plots_samevar <- c()
+for (run in 1:4) {
+  next_plot <- pca_visualize( 1 , 1 )
+  list_of_plots_samevar[[run]] <- next_plot
+}
+
+ggarrange(
+  plotlist = list_of_plots_samevar[1:4],
+  ncol = 2,
+  nrow = 2)
+
+```
+
+
+
+## Task 3
+
+```{r, echo=FALSE,fig.align='center'}
+
+
+t3p1_url = 'https://raw.githubusercontent.com/BognarAndras/ds1_final/main/task3_one.png'
+if (!file.exists(t3p1_file <- 'task3_one.png'))
+  download.file(t3p1_url, t3p1_file, mode = 'wb')
+knitr::include_graphics(if (identical(knitr:::pandoc_to(), 'html')) t3p1_url else
+  t3p1_file)
+
+```
+
+So, in the above problem the first term is an OLS regression which is constrained by the absolute value of the coefficients. It’s a different way to express what LASSO is doing (shrinking the coefficients). Therefore, the below questions refers to how LASSO properties behave when we decrease lambda (here s denotes similar role, but increasing s will have opposite effect of increasing lambda as we allow bigger coefficients while bigger lambda shrinks coefficients more) which we have seen in the first assignment.
+
+```{r, echo=FALSE,fig.align='center'}
+
+
+t3p2_url = 'https://raw.githubusercontent.com/BognarAndras/ds1_final/main/task3_two.png'
+if (!file.exists(t3p2_file <- 'task3_two.png'))
+  download.file(t3p2_url, t3p2_file, mode = 'wb')
+knitr::include_graphics(if (identical(knitr:::pandoc_to(), 'html')) t3p2_url else
+  t3p2_file)
+
+```
+
+Residual sum of squares (RSS) is a measure of fit similar to MSE, but not divided by number of observations. In the training data it will **steadily decrease** as we allow the coefficients to approach OLS.
+
+```{r, echo=FALSE,fig.align='center'}
+
+
+t3p3_url = 'https://raw.githubusercontent.com/BognarAndras/ds1_final/main/task3_three.png'
+if (!file.exists(t3p3_file <- 'task3_three.png'))
+  download.file(t3p3_url, t3p3_file, mode = 'wb')
+knitr::include_graphics(if (identical(knitr:::pandoc_to(), 'html')) t3p3_url else
+  t3p3_file)
+
+```
+
+However, in the test data it will only **decrease initially, and then eventually start increasing in a U shape**. That is because using all coefficients with the OLS values overfit the data which is what we want to avoid with shrinkage focusing only on relevant magnitude of coefficients that can be generalized.
+
+```{r, echo=FALSE,fig.align='center'}
+
+
+t3p4_url = 'https://raw.githubusercontent.com/BognarAndras/ds1_final/main/task3_four.png'
+if (!file.exists(t3p4_file <- 'task3_four.png'))
+  download.file(t3p4_url, t3p4_file, mode = 'wb')
+knitr::include_graphics(if (identical(knitr:::pandoc_to(), 'html')) t3p4_url else
+  t3p4_file)
+
+```
+
+At s = 0, all coefficients are dropped except for the constant. Here the variance is 0 and it **steadily increases** as more coefficients with higher magnitude are allowed to enter.
+
+```{r, echo=FALSE,fig.align='center'}
+
+
+t3p5_url = 'https://raw.githubusercontent.com/BognarAndras/ds1_final/main/task3_five.png'
+if (!file.exists(t3p5_file <- 'task3_five.png'))
+  download.file(t3p5_url, t3p5_file, mode = 'wb')
+knitr::include_graphics(if (identical(knitr:::pandoc_to(), 'html')) t3p5_url else
+  t3p5_file)
+
+```
+
+Bias on the other hand **steadily decreases** as consequence of better fit as explained under RSS.
+
+```{r, echo=FALSE,fig.align='center'}
+
+
+t3p6_url = 'https://raw.githubusercontent.com/BognarAndras/ds1_final/main/task3_six.png'
+if (!file.exists(t3p6_file <- 'task3_six.png'))
+  download.file(t3p6_url, t3p6_file, mode = 'wb')
+knitr::include_graphics(if (identical(knitr:::pandoc_to(), 'html')) t3p6_url else
+  t3p6_file)
+
+```
+
+Irreducible error or noise doesn’t change based on model selection or feature engineering, it comes from the fact that our data doesn’t include all relevant predictors. We can’t change that, so it **remains constant**.
