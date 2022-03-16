@@ -81,7 +81,7 @@ data_by_lambda[ , ':='(mse = bias2+var)]
 kable(data_by_lambda) %>% kable_styling(latex_options = "hold_position")
 ```
 
-In the visualization of the results I don't include OLS, it would be redundant. We see a similar bias-variance tradeoff as in the first assignment, only here the variance decreases as the penalty term rises and the bias increases at the same time. In real data with predictors, this would be the result of shrinking coefficients so that the irrelevant predictors are weighted nearly 0 (although never dropped in Ridge).
+In the visualization of the results I don't include OLS, it would be redundant. We see a similar bias-variance tradeoff as in the first assignment, only here the variance decreases as the penalty term rises and the bias increases at the same time. In real data with predictors, this would be the result of shrinking coefficients so that the irrelevant predictors are weighted nearly 0 (although never dropped in Ridge), too much shrinking results in losing relevant information.
 
 
 ```{r}
